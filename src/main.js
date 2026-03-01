@@ -64,18 +64,17 @@ const levelBlueprint = {
     { id: 'r-loop-top', coord: { x: 4, y: 16 }, size: { w: 28, h: 2 }, type: 'road', meta: { orientation: 'h' } },
     { id: 'r-loop-left', coord: { x: 4, y: 6 }, size: { w: 2, h: 10 }, type: 'road', meta: { orientation: 'v' } },
     { id: 'r-loop-right', coord: { x: 30, y: 6 }, size: { w: 2, h: 10 }, type: 'road', meta: { orientation: 'v' } },
-    { id: 'r-mid-horizontal', coord: { x: 10, y: 10 }, size: { w: 16, h: 2 }, type: 'road', meta: { orientation: 'h' } },
-    { id: 'r-mid-vertical', coord: { x: 17, y: 6 }, size: { w: 2, h: 10 }, type: 'road', meta: { orientation: 'v' } },
-    { id: 'r-branch-nw', coord: { x: 8, y: 12 }, size: { w: 2, h: 6 }, type: 'road', meta: { orientation: 'v' } },
-    { id: 'r-branch-se', coord: { x: 22, y: 4 }, size: { w: 2, h: 6 }, type: 'road', meta: { orientation: 'v' } },
+    { id: 'r-mid-horizontal', coord: { x: 8, y: 10 }, size: { w: 20, h: 2 }, type: 'road', meta: { orientation: 'h' } },
+    { id: 'r-mid-vertical-west', coord: { x: 12, y: 6 }, size: { w: 2, h: 10 }, type: 'road', meta: { orientation: 'v' } },
+    { id: 'r-mid-vertical-east', coord: { x: 22, y: 6 }, size: { w: 2, h: 10 }, type: 'road', meta: { orientation: 'v' } },
   ],
   buildings: [
-    { id: 'b-hub', coord: { x: 11, y: 12 }, size: { w: 5, h: 4 }, type: 'building', meta: { style: 'hub', neon: '#1de9ff' } },
-    { id: 'b-reactor', coord: { x: 20, y: 12 }, size: { w: 5, h: 4 }, type: 'building', meta: { style: 'reactor', neon: '#9cff57' } },
+    { id: 'b-hub', coord: { x: 14, y: 12 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'hub', neon: '#1de9ff' } },
+    { id: 'b-reactor', coord: { x: 18, y: 12 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'reactor', neon: '#9cff57' } },
     { id: 'b-tower-west', coord: { x: 6, y: 7 }, size: { w: 3, h: 5 }, type: 'building', meta: { style: 'tower', neon: '#ff43b4' } },
     { id: 'b-tower-east', coord: { x: 27, y: 7 }, size: { w: 3, h: 5 }, type: 'building', meta: { style: 'tower', neon: '#7c7bff' } },
-    { id: 'b-plant-south', coord: { x: 13, y: 6 }, size: { w: 4, h: 3 }, type: 'building', meta: { style: 'plant', neon: '#ffa35c' } },
-    { id: 'b-plant-north', coord: { x: 19, y: 6 }, size: { w: 4, h: 3 }, type: 'building', meta: { style: 'plant', neon: '#4ce2ff' } },
+    { id: 'b-plant-south', coord: { x: 14, y: 6 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'plant', neon: '#ffa35c' } },
+    { id: 'b-plant-north', coord: { x: 19, y: 6 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'plant', neon: '#4ce2ff' } },
   ],
 };
 
@@ -90,6 +89,24 @@ for (const road of roads) {
       roadCells.add(`${x},${y}`);
     }
   }
+}
+
+const buildingCells = new Set();
+for (const building of buildings) {
+  for (let x = building.coord.x; x < building.coord.x + building.size.w; x += 1) {
+    for (let y = building.coord.y; y < building.coord.y + building.size.h; y += 1) {
+      buildingCells.add(`${x},${y}`);
+    }
+  }
+}
+
+const overlappingCells = [];
+for (const roadCell of roadCells) {
+  if (buildingCells.has(roadCell)) overlappingCells.push(roadCell);
+}
+
+if (overlappingCells.length > 0) {
+  throw new Error(`Invalid level: road/building overlap at ${overlappingCells.join(' | ')}`);
 }
 
 const roadGraph = new Map();
@@ -120,6 +137,23 @@ const entrances = buildings.map((building) => {
   }
   return { building, options };
 }).filter((entry) => entry.options.length > 0);
+
+for (const key of roadCells) {
+  const [x, y] = key.split(',').map(Number);
+  const degree = roadGraph.get(key)?.length ?? 0;
+  if (degree !== 1) continue;
+
+  const touchesBuilding = [
+    `${x + 1},${y}`,
+    `${x - 1},${y}`,
+    `${x},${y + 1}`,
+    `${x},${y - 1}`,
+  ].some((adjacent) => buildingCells.has(adjacent));
+
+  if (!touchesBuilding) {
+    throw new Error(`Invalid level: dead-end road at ${key} is not connected to a building`);
+  }
+}
 
 function bfsPath(start, goal) {
   const startKey = `${start.x},${start.y}`;
