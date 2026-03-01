@@ -192,43 +192,109 @@ function canTravel(from, to) {
   return matchesFromLane && matchesToLane;
 }
 
-const buildingExits = buildings.map((building) => {
-  const exits = [];
-  for (let x = building.coord.x - 1; x <= building.coord.x + building.size.w; x += 1) {
-    const south = `${x},${building.coord.y - 1}`;
-    const north = `${x},${building.coord.y + building.size.h}`;
-    if (roadCells.has(south)) exits.push({ buildingId: building.id, x, y: building.coord.y - 1 });
-    if (roadCells.has(north)) exits.push({ buildingId: building.id, x, y: building.coord.y + building.size.h });
+function findRuns(values) {
+  const sorted = [...values].sort((a, b) => a - b);
+  const runs = [];
+  let current = [];
+  for (const value of sorted) {
+    if (!current.length || value === current[current.length - 1] + 1) {
+      current.push(value);
+      continue;
+    }
+    runs.push(current);
+    current = [value];
   }
+  if (current.length) runs.push(current);
+  return runs;
+}
+
+function pickContiguousPair(run) {
+  const middle = Math.floor((run.length - 2) / 2);
+  return [run[middle], run[middle + 1]];
+}
+
+function buildBuildingPortal(building) {
+  const sides = [];
+
+  const southRoadXs = [];
+  const northRoadXs = [];
+  for (let x = building.coord.x; x < building.coord.x + building.size.w; x += 1) {
+    if (roadCells.has(`${x},${building.coord.y - 1}`)) southRoadXs.push(x);
+    if (roadCells.has(`${x},${building.coord.y + building.size.h}`)) northRoadXs.push(x);
+  }
+
+  const westRoadYs = [];
+  const eastRoadYs = [];
   for (let y = building.coord.y; y < building.coord.y + building.size.h; y += 1) {
-    const west = `${building.coord.x - 1},${y}`;
-    const east = `${building.coord.x + building.size.w},${y}`;
-    if (roadCells.has(west)) exits.push({ buildingId: building.id, x: building.coord.x - 1, y });
-    if (roadCells.has(east)) exits.push({ buildingId: building.id, x: building.coord.x + building.size.w, y });
-  }
-  building.meta.exits = exits;
-  return { building, exits };
-});
-
-for (const entry of buildingExits) {
-  if (entry.exits.length === 0) {
-    throw new Error(`Invalid level: building ${entry.building.id} has no road-connected exits`);
+    if (roadCells.has(`${building.coord.x - 1},${y}`)) westRoadYs.push(y);
+    if (roadCells.has(`${building.coord.x + building.size.w},${y}`)) eastRoadYs.push(y);
   }
 
-  for (const exit of entry.exits) {
-    const key = `${exit.x},${exit.y}`;
-    if (!roadCells.has(key)) {
-      throw new Error(`Invalid level: exit ${entry.building.id}@${key} is not connected to a road cell`);
+  for (const run of findRuns(southRoadXs)) {
+    if (run.length >= 2) {
+      const [x0, x1] = pickContiguousPair(run);
+      sides.push({
+        side: 'south',
+        roadCells: [{ x: x0, y: building.coord.y - 1 }, { x: x1, y: building.coord.y - 1 }],
+      });
     }
   }
+  for (const run of findRuns(northRoadXs)) {
+    if (run.length >= 2) {
+      const [x0, x1] = pickContiguousPair(run);
+      sides.push({
+        side: 'north',
+        roadCells: [{ x: x0, y: building.coord.y + building.size.h }, { x: x1, y: building.coord.y + building.size.h }],
+      });
+    }
+  }
+  for (const run of findRuns(westRoadYs)) {
+    if (run.length >= 2) {
+      const [y0, y1] = pickContiguousPair(run);
+      sides.push({
+        side: 'west',
+        roadCells: [{ x: building.coord.x - 1, y: y0 }, { x: building.coord.x - 1, y: y1 }],
+      });
+    }
+  }
+  for (const run of findRuns(eastRoadYs)) {
+    if (run.length >= 2) {
+      const [y0, y1] = pickContiguousPair(run);
+      sides.push({
+        side: 'east',
+        roadCells: [{ x: building.coord.x + building.size.w, y: y0 }, { x: building.coord.x + building.size.w, y: y1 }],
+      });
+    }
+  }
+
+  if (!sides.length) return null;
+
+  const preferredOrder = ['south', 'north', 'west', 'east'];
+  const selected = sides.sort(
+    (a, b) => preferredOrder.indexOf(a.side) - preferredOrder.indexOf(b.side),
+  )[0];
+
+  return {
+    buildingId: building.id,
+    side: selected.side,
+    roadCells: selected.roadCells,
+  };
 }
 
-const exitLookup = new Map();
-for (const entry of buildingExits) {
-  for (const exit of entry.exits) {
-    exitLookup.set(`${exit.x},${exit.y}`, entry.building.id);
+const buildingPortals = buildings.map((building) => {
+  const portal = buildBuildingPortal(building);
+  if (!portal) {
+    throw new Error(`Invalid level: building ${building.id} has no 2-cell road-connected portal`);
   }
-}
+  for (const roadCell of portal.roadCells) {
+    const key = `${roadCell.x},${roadCell.y}`;
+    if (!roadCells.has(key)) {
+      throw new Error(`Invalid level: portal ${building.id}@${key} is not connected to a road cell`);
+    }
+  }
+  building.meta.portal = portal;
+  return { building, portal };
+});
 
 for (const key of roadCells) {
   const [x, y] = key.split(',').map(Number);
@@ -358,19 +424,19 @@ const MAX_ACTIVE_VEHICLES = 4;
 function createTrip(originBuildingId = null) {
   for (let attempt = 0; attempt < 80; attempt += 1) {
     const origin = originBuildingId
-      ? buildingExits.find((entry) => entry.building.id === originBuildingId)
-      : pick(buildingExits);
+      ? buildingPortals.find((entry) => entry.building.id === originBuildingId)
+      : pick(buildingPortals);
     if (!origin) continue;
 
     const prefersReturn = Math.random() < 0.25;
     const destinationPool = prefersReturn
-      ? buildingExits
-      : buildingExits.filter((entry) => entry.building.id !== origin.building.id);
-    const destination = pick(destinationPool.length ? destinationPool : buildingExits);
+      ? buildingPortals
+      : buildingPortals.filter((entry) => entry.building.id !== origin.building.id);
+    const destination = pick(destinationPool.length ? destinationPool : buildingPortals);
     if (!destination) continue;
 
-    const start = pick(origin.exits);
-    const goal = pick(destination.exits);
+    const start = pick(origin.portal.roadCells);
+    const goal = pick(destination.portal.roadCells);
     const path = bfsPath(start, goal);
     if (!path || path.length <= 1) continue;
 
@@ -378,8 +444,11 @@ function createTrip(originBuildingId = null) {
     if (path.length < minDistance) continue;
 
     return {
+      originBuildingId: origin.building.id,
+      originPortal: origin.portal,
       start,
       route: path.slice(1),
+      destinationPortal: destination.portal,
       destinationBuildingId: destination.building.id,
     };
   }
@@ -391,8 +460,11 @@ class Vehicle {
     this.id = id;
     this.type = pick(vehicleTypes);
     this.cell = { ...trip.start };
-    this.position = cellCenter(trip.start);
+    this.position = { ...cellCenter(trip.start) };
     this.path = [...trip.route];
+    this.originBuildingId = trip.originBuildingId;
+    this.originPortal = trip.originPortal;
+    this.destinationPortal = trip.destinationPortal;
     this.destinationBuildingId = trip.destinationBuildingId;
     this.progress = 0;
     this.tail = [];
@@ -400,12 +472,60 @@ class Vehicle {
     this.heading = 0;
     this.targetHeading = 0;
     this.previousCell = null;
+    this.phase = 'exiting';
+    this.transitionProgress = 0;
+    this.transitionDuration = 0.45;
     this.despawned = false;
+
+    this.setTransitionFromBuilding(this.originBuildingId, this.cell);
+  }
+
+  setTransitionFromBuilding(buildingId, roadCell) {
+    const building = buildings.find((candidate) => candidate.id === buildingId);
+    if (!building) return;
+    const buildingCenter = cellCenter(building.center());
+    this.transitionStart = { ...buildingCenter };
+    this.transitionEnd = cellCenter(roadCell);
+  }
+
+  setTransitionToBuilding(roadCell, buildingId) {
+    const building = buildings.find((candidate) => candidate.id === buildingId);
+    if (!building) return;
+    const buildingCenter = cellCenter(building.center());
+    this.transitionStart = cellCenter(roadCell);
+    this.transitionEnd = { ...buildingCenter };
   }
 
   update(dt) {
+    if (this.phase !== 'road') {
+      this.transitionProgress += dt / this.transitionDuration;
+      const t = Math.min(this.transitionProgress, 1);
+      const from = this.transitionStart;
+      const to = this.transitionEnd;
+      this.targetHeading = Math.atan2(to.y - from.y, to.x - from.x);
+      const headingDelta = normalizeAngle(this.targetHeading - this.heading);
+      this.heading += headingDelta * Math.min(1, dt * 10);
+      this.position.x = from.x + (to.x - from.x) * t;
+      this.position.y = from.y + (to.y - from.y) * t;
+
+      this.tail.push({ x: this.position.x, y: this.position.y, life: 0.65 });
+      if (this.tail.length > 24) this.tail.shift();
+
+      if (this.transitionProgress >= 1) {
+        if (this.phase === 'exiting') {
+          this.phase = 'road';
+        } else {
+          this.despawned = true;
+        }
+      }
+      this.fadeTail(dt);
+      return;
+    }
+
     if (!this.path.length) {
-      this.despawned = true;
+      this.phase = 'entering';
+      this.transitionProgress = 0;
+      this.setTransitionToBuilding(this.cell, this.destinationBuildingId);
       return;
     }
 
@@ -431,11 +551,6 @@ class Vehicle {
       this.path.shift();
       this.progress = 0;
       this.previousCell = departedCell;
-
-      const reachedExitBuildingId = exitLookup.get(`${this.cell.x},${this.cell.y}`);
-      if (!this.path.length && reachedExitBuildingId === this.destinationBuildingId) {
-        this.despawned = true;
-      }
     }
 
     this.fadeTail(dt);
@@ -582,40 +697,41 @@ function drawBuilding(building) {
   ctx.fillRect(x + 6, y + h - 6, w - 12, 2);
   ctx.shadowBlur = 0;
 
-  for (const exit of building.meta.exits || []) {
-    const localX = exit.x - building.coord.x;
-    const localY = exit.y - building.coord.y;
-    const isWest = localX < 0;
-    const isEast = localX >= building.size.w;
-    const isSouth = localY < 0;
-    const isNorth = localY >= building.size.h;
+  const portal = building.meta.portal;
+  if (!portal) return;
 
-    let markerX = x;
-    let markerY = y;
-    let markerW = 12;
-    let markerH = 12;
+  const first = portal.roadCells[0];
+  const second = portal.roadCells[1];
+  const minX = Math.min(first.x, second.x);
+  const maxX = Math.max(first.x, second.x);
+  const minY = Math.min(first.y, second.y);
+  const maxY = Math.max(first.y, second.y);
 
-    if (isWest) {
-      markerX = x - 2;
-      markerY = y + (localY + 0.5) * CELL_SIZE - markerH / 2;
-      markerW = 4;
-    } else if (isEast) {
-      markerX = x + w - 2;
-      markerY = y + (localY + 0.5) * CELL_SIZE - markerH / 2;
-      markerW = 4;
-    } else if (isSouth) {
-      markerX = x + (localX + 0.5) * CELL_SIZE - markerW / 2;
-      markerY = y + h - 2;
-      markerH = 4;
-    } else if (isNorth) {
-      markerX = x + (localX + 0.5) * CELL_SIZE - markerW / 2;
-      markerY = y - 2;
-      markerH = 4;
-    }
+  let markerX = x;
+  let markerY = y;
+  let markerW = CELL_SIZE * (maxX - minX + 1);
+  let markerH = CELL_SIZE * (maxY - minY + 1);
 
-    ctx.fillStyle = blend(neon, 0.9);
-    ctx.fillRect(markerX, markerY, markerW, markerH);
+  if (portal.side === 'west') {
+    markerX = x - 2;
+    markerY = y + h - (maxY - building.coord.y + 1) * CELL_SIZE;
+    markerW = 4;
+  } else if (portal.side === 'east') {
+    markerX = x + w - 2;
+    markerY = y + h - (maxY - building.coord.y + 1) * CELL_SIZE;
+    markerW = 4;
+  } else if (portal.side === 'south') {
+    markerX = x + (minX - building.coord.x) * CELL_SIZE;
+    markerY = y + h - 2;
+    markerH = 4;
+  } else if (portal.side === 'north') {
+    markerX = x + (minX - building.coord.x) * CELL_SIZE;
+    markerY = y - 2;
+    markerH = 4;
   }
+
+  ctx.fillStyle = blend(neon, 0.9);
+  ctx.fillRect(markerX, markerY, markerW, markerH);
 }
 
 let lastTs = performance.now();
