@@ -192,22 +192,43 @@ function canTravel(from, to) {
   return matchesFromLane && matchesToLane;
 }
 
-const entrances = buildings.map((building) => {
-  const options = [];
+const buildingExits = buildings.map((building) => {
+  const exits = [];
   for (let x = building.coord.x - 1; x <= building.coord.x + building.size.w; x += 1) {
     const south = `${x},${building.coord.y - 1}`;
     const north = `${x},${building.coord.y + building.size.h}`;
-    if (roadCells.has(south)) options.push({ buildingId: building.id, x, y: building.coord.y - 1 });
-    if (roadCells.has(north)) options.push({ buildingId: building.id, x, y: building.coord.y + building.size.h });
+    if (roadCells.has(south)) exits.push({ buildingId: building.id, x, y: building.coord.y - 1 });
+    if (roadCells.has(north)) exits.push({ buildingId: building.id, x, y: building.coord.y + building.size.h });
   }
   for (let y = building.coord.y; y < building.coord.y + building.size.h; y += 1) {
     const west = `${building.coord.x - 1},${y}`;
     const east = `${building.coord.x + building.size.w},${y}`;
-    if (roadCells.has(west)) options.push({ buildingId: building.id, x: building.coord.x - 1, y });
-    if (roadCells.has(east)) options.push({ buildingId: building.id, x: building.coord.x + building.size.w, y });
+    if (roadCells.has(west)) exits.push({ buildingId: building.id, x: building.coord.x - 1, y });
+    if (roadCells.has(east)) exits.push({ buildingId: building.id, x: building.coord.x + building.size.w, y });
   }
-  return { building, options };
-}).filter((entry) => entry.options.length > 0);
+  building.meta.exits = exits;
+  return { building, exits };
+});
+
+for (const entry of buildingExits) {
+  if (entry.exits.length === 0) {
+    throw new Error(`Invalid level: building ${entry.building.id} has no road-connected exits`);
+  }
+
+  for (const exit of entry.exits) {
+    const key = `${exit.x},${exit.y}`;
+    if (!roadCells.has(key)) {
+      throw new Error(`Invalid level: exit ${entry.building.id}@${key} is not connected to a road cell`);
+    }
+  }
+}
+
+const exitLookup = new Map();
+for (const entry of buildingExits) {
+  for (const exit of entry.exits) {
+    exitLookup.set(`${exit.x},${exit.y}`, entry.building.id);
+  }
+}
 
 for (const key of roadCells) {
   const [x, y] = key.split(',').map(Number);
@@ -325,57 +346,70 @@ const roadGlowProfiles = new Map(
 );
 
 const vehicleTypes = [
-  { kind: 'hover', body: '#68d5ff', glow: '#1de9ff', tail: '#1de9ff', speed: 2.4 },
-  { kind: 'cargo', body: '#f7a9ff', glow: '#ff43b4', tail: '#ff43b4', speed: 2.0 },
-  { kind: 'pulse', body: '#d2ff9b', glow: '#9cff57', tail: '#9cff57', speed: 2.8 },
-  { kind: 'taxi', body: '#ffc67d', glow: '#ff9c3d', tail: '#ffb970', speed: 2.2 },
+  { kind: 'hover', body: '#68d5ff', glow: '#1de9ff', tail: '#1de9ff', speed: 3.8 },
+  { kind: 'cargo', body: '#f7a9ff', glow: '#ff43b4', tail: '#ff43b4', speed: 3.4 },
+  { kind: 'pulse', body: '#d2ff9b', glow: '#9cff57', tail: '#9cff57', speed: 4.2 },
+  { kind: 'taxi', body: '#ffc67d', glow: '#ff9c3d', tail: '#ffb970', speed: 3.6 },
 ];
 
+const MIN_ACTIVE_VEHICLES = 2;
+const MAX_ACTIVE_VEHICLES = 4;
+
+function createTrip(originBuildingId = null) {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const origin = originBuildingId
+      ? buildingExits.find((entry) => entry.building.id === originBuildingId)
+      : pick(buildingExits);
+    if (!origin) continue;
+
+    const prefersReturn = Math.random() < 0.25;
+    const destinationPool = prefersReturn
+      ? buildingExits
+      : buildingExits.filter((entry) => entry.building.id !== origin.building.id);
+    const destination = pick(destinationPool.length ? destinationPool : buildingExits);
+    if (!destination) continue;
+
+    const start = pick(origin.exits);
+    const goal = pick(destination.exits);
+    const path = bfsPath(start, goal);
+    if (!path || path.length <= 1) continue;
+
+    const minDistance = origin.building.id === destination.building.id ? 7 : 3;
+    if (path.length < minDistance) continue;
+
+    return {
+      start,
+      route: path.slice(1),
+      destinationBuildingId: destination.building.id,
+    };
+  }
+  return null;
+}
+
 class Vehicle {
-  constructor(id, startCell) {
+  constructor(id, trip) {
     this.id = id;
     this.type = pick(vehicleTypes);
-    this.cell = { ...startCell };
-    this.position = cellCenter(startCell);
-    this.path = [];
+    this.cell = { ...trip.start };
+    this.position = cellCenter(trip.start);
+    this.path = [...trip.route];
+    this.destinationBuildingId = trip.destinationBuildingId;
     this.progress = 0;
-    this.stopTimer = 0;
-    this.stopType = null;
     this.tail = [];
     this.radius = 8;
     this.heading = 0;
     this.targetHeading = 0;
     this.previousCell = null;
+    this.despawned = false;
   }
 
-  assignRoute(cells) {
-    this.path = cells;
-    this.progress = 0;
-  }
-
-  update(dt, occupiedCells) {
-    if (this.stopTimer > 0) {
-      this.stopTimer -= dt;
-      this.fadeTail(dt);
-      return;
-    }
-
+  update(dt) {
     if (!this.path.length) {
-      this.pickNewRoute();
+      this.despawned = true;
       return;
     }
 
     const nextCell = this.path[0];
-    const nextKey = `${nextCell.x},${nextCell.y}`;
-    const myKey = `${this.cell.x},${this.cell.y}`;
-    const atIntersection = intersectionCells.has(myKey);
-
-    if (atIntersection && occupiedCells.has(nextKey) && nextKey !== myKey) {
-      this.stopTimer = rand(0.2, 0.5);
-      this.stopType = 'traffic';
-      this.fadeTail(dt);
-      return;
-    }
 
     this.progress += dt * this.type.speed;
     const from = cellCenter(this.cell);
@@ -398,14 +432,9 @@ class Vehicle {
       this.progress = 0;
       this.previousCell = departedCell;
 
-      const entry = entrances.find((item) => item.options.some((option) => option.x === this.cell.x && option.y === this.cell.y));
-      const nowAtIntersection = intersectionCells.has(`${this.cell.x},${this.cell.y}`);
-      if (entry && Math.random() < 0.24) {
-        this.stopTimer = rand(1.4, 3.1);
-        this.stopType = 'building';
-      } else if (nowAtIntersection && Math.random() < 0.1) {
-        this.stopTimer = rand(0.5, 1.6);
-        this.stopType = 'traffic';
+      const reachedExitBuildingId = exitLookup.get(`${this.cell.x},${this.cell.y}`);
+      if (!this.path.length && reachedExitBuildingId === this.destinationBuildingId) {
+        this.despawned = true;
       }
     }
 
@@ -416,26 +445,6 @@ class Vehicle {
     for (const piece of this.tail) piece.life -= dt;
     this.tail = this.tail.filter((piece) => piece.life > 0);
   }
-
-  pickNewRoute() {
-    const start = this.cell;
-    let target;
-
-    if (Math.random() < 0.6) {
-      const building = pick(entrances);
-      target = pick(building.options);
-    } else {
-      const keys = [...roadCells];
-      const [x, y] = pick(keys).split(',').map(Number);
-      target = { x, y };
-    }
-
-    const path = bfsPath(start, target, this.previousCell);
-    if (path && path.length > 1) {
-      this.assignRoute(path.slice(1));
-    }
-  }
-
   draw(ctx) {
     for (const piece of this.tail) {
       ctx.beginPath();
@@ -461,16 +470,22 @@ class Vehicle {
   }
 }
 
-const seedCells = Array.from(roadCells)
-  .slice(0, 10)
-  .map((key) => {
-    const [x, y] = key.split(',').map(Number);
-    return { x, y };
-  });
+const vehicles = [];
+let vehicleIdCounter = 1;
+let spawnCooldown = 0;
 
-const vehicles = Array.from({ length: 10 }, (_, i) => new Vehicle(i + 1, seedCells[i % seedCells.length]));
+function spawnVehicle(force = false) {
+  if (vehicles.length >= MAX_ACTIVE_VEHICLES) return;
+  if (!force && spawnCooldown > 0) return;
 
-for (const vehicle of vehicles) vehicle.pickNewRoute();
+  const trip = createTrip();
+  if (!trip) return;
+  vehicles.push(new Vehicle(vehicleIdCounter, trip));
+  vehicleIdCounter += 1;
+  spawnCooldown = rand(0.4, 1.2);
+}
+
+for (let i = 0; i < MIN_ACTIVE_VEHICLES; i += 1) spawnVehicle(true);
 
 function drawGrid() {
   ctx.strokeStyle = 'rgba(62, 123, 178, 0.18)';
@@ -566,6 +581,41 @@ function drawBuilding(building) {
   ctx.fillStyle = blend(neon, 0.35);
   ctx.fillRect(x + 6, y + h - 6, w - 12, 2);
   ctx.shadowBlur = 0;
+
+  for (const exit of building.meta.exits || []) {
+    const localX = exit.x - building.coord.x;
+    const localY = exit.y - building.coord.y;
+    const isWest = localX < 0;
+    const isEast = localX >= building.size.w;
+    const isSouth = localY < 0;
+    const isNorth = localY >= building.size.h;
+
+    let markerX = x;
+    let markerY = y;
+    let markerW = 12;
+    let markerH = 12;
+
+    if (isWest) {
+      markerX = x - 2;
+      markerY = y + (localY + 0.5) * CELL_SIZE - markerH / 2;
+      markerW = 4;
+    } else if (isEast) {
+      markerX = x + w - 2;
+      markerY = y + (localY + 0.5) * CELL_SIZE - markerH / 2;
+      markerW = 4;
+    } else if (isSouth) {
+      markerX = x + (localX + 0.5) * CELL_SIZE - markerW / 2;
+      markerY = y + h - 2;
+      markerH = 4;
+    } else if (isNorth) {
+      markerX = x + (localX + 0.5) * CELL_SIZE - markerW / 2;
+      markerY = y - 2;
+      markerH = 4;
+    }
+
+    ctx.fillStyle = blend(neon, 0.9);
+    ctx.fillRect(markerX, markerY, markerW, markerH);
+  }
 }
 
 let lastTs = performance.now();
@@ -586,12 +636,16 @@ function frame(ts) {
   roads.forEach((road) => drawRoad(road, elapsed));
   buildings.forEach(drawBuilding);
 
-  const occupiedCells = new Set(vehicles.map((v) => `${v.cell.x},${v.cell.y}`));
-  for (const vehicle of vehicles) {
-    const previousCellKey = `${vehicle.cell.x},${vehicle.cell.y}`;
-    occupiedCells.delete(previousCellKey);
-    vehicle.update(dt, occupiedCells);
-    occupiedCells.add(`${vehicle.cell.x},${vehicle.cell.y}`);
+  spawnCooldown = Math.max(0, spawnCooldown - dt);
+  if (vehicles.length < MIN_ACTIVE_VEHICLES) {
+    spawnVehicle(true);
+  } else if (vehicles.length < MAX_ACTIVE_VEHICLES && Math.random() < dt * 0.7) {
+    spawnVehicle();
+  }
+
+  for (const vehicle of vehicles) vehicle.update(dt);
+  for (let i = vehicles.length - 1; i >= 0; i -= 1) {
+    if (vehicles[i].despawned) vehicles.splice(i, 1);
   }
   for (const vehicle of vehicles) vehicle.draw(ctx);
 
