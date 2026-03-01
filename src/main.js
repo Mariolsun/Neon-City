@@ -1,5 +1,12 @@
 const canvas = document.getElementById('game-canvas');
+if (!(canvas instanceof HTMLCanvasElement)) {
+  throw new Error('Missing required #game-canvas element');
+}
+
 const ctx = canvas.getContext('2d');
+if (!ctx) {
+  throw new Error('Unable to acquire 2D canvas context');
+}
 
 const CELL_SIZE = 32;
 const GRID_WIDTH = 36;
@@ -392,10 +399,11 @@ class Vehicle {
       this.previousCell = departedCell;
 
       const entry = entrances.find((item) => item.options.some((option) => option.x === this.cell.x && option.y === this.cell.y));
+      const nowAtIntersection = intersectionCells.has(`${this.cell.x},${this.cell.y}`);
       if (entry && Math.random() < 0.24) {
         this.stopTimer = rand(1.4, 3.1);
         this.stopType = 'building';
-      } else if (atIntersection && Math.random() < 0.1) {
+      } else if (nowAtIntersection && Math.random() < 0.1) {
         this.stopTimer = rand(0.5, 1.6);
         this.stopType = 'traffic';
       }
@@ -579,7 +587,12 @@ function frame(ts) {
   buildings.forEach(drawBuilding);
 
   const occupiedCells = new Set(vehicles.map((v) => `${v.cell.x},${v.cell.y}`));
-  for (const vehicle of vehicles) vehicle.update(dt, occupiedCells);
+  for (const vehicle of vehicles) {
+    const previousCellKey = `${vehicle.cell.x},${vehicle.cell.y}`;
+    occupiedCells.delete(previousCellKey);
+    vehicle.update(dt, occupiedCells);
+    occupiedCells.add(`${vehicle.cell.x},${vehicle.cell.y}`);
+  }
   for (const vehicle of vehicles) vehicle.draw(ctx);
 
   requestAnimationFrame(frame);
