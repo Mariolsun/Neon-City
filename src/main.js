@@ -9,6 +9,14 @@ const OFFSET_Y = Math.floor((canvas.height - GRID_HEIGHT * CELL_SIZE) / 2);
 
 const rand = (min, max) => Math.random() * (max - min) + min;
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const TAU = Math.PI * 2;
+
+function normalizeAngle(angle) {
+  let normalized = angle;
+  while (normalized > Math.PI) normalized -= TAU;
+  while (normalized < -Math.PI) normalized += TAU;
+  return normalized;
+}
 
 class GameObject {
   constructor({ id, coord, size, type, meta = {} }) {
@@ -223,6 +231,8 @@ class Vehicle {
     this.stopType = 'traffic';
     this.tail = [];
     this.radius = 8;
+    this.heading = 0;
+    this.targetHeading = 0;
   }
 
   assignRoute(cells) {
@@ -256,6 +266,10 @@ class Vehicle {
     this.progress += dt * this.type.speed;
     const from = cellCenter(this.cell);
     const to = cellCenter(nextCell);
+    this.targetHeading = Math.atan2(to.y - from.y, to.x - from.x);
+    const headingDelta = normalizeAngle(this.targetHeading - this.heading);
+    const turnRate = 10;
+    this.heading += headingDelta * Math.min(1, dt * turnRate);
     const t = Math.min(this.progress, 1);
     this.position.x = from.x + (to.x - from.x) * t;
     this.position.y = from.y + (to.y - from.y) * t;
@@ -316,13 +330,17 @@ class Vehicle {
     ctx.shadowColor = blend(this.type.glow, 0.9);
     ctx.shadowBlur = 14;
     ctx.fillStyle = this.type.body;
+    ctx.save();
+    ctx.translate(this.position.x, this.position.y);
+    ctx.rotate(this.heading);
     ctx.beginPath();
-    ctx.roundRect(this.position.x - 9, this.position.y - 5, 18, 10, 4);
+    ctx.roundRect(-9, -5, 18, 10, 4);
     ctx.fill();
     ctx.shadowBlur = 0;
 
     ctx.fillStyle = blend('#ffffff', 0.5);
-    ctx.fillRect(this.position.x + 2, this.position.y - 2, 5, 2);
+    ctx.fillRect(2, -2, 5, 2);
+    ctx.restore();
   }
 }
 
