@@ -528,11 +528,13 @@ const roadGlowProfiles = new Map(
   ]),
 );
 
+const VEHICLE_SPEED_MULTIPLIER = 5;
+
 const vehicleTypes = [
-  { kind: 'hover', body: '#68d5ff', glow: '#1de9ff', tail: '#1de9ff', speed: 3.8 },
-  { kind: 'cargo', body: '#f7a9ff', glow: '#ff43b4', tail: '#ff43b4', speed: 3.4 },
-  { kind: 'pulse', body: '#d2ff9b', glow: '#9cff57', tail: '#9cff57', speed: 4.2 },
-  { kind: 'taxi', body: '#ffc67d', glow: '#ff9c3d', tail: '#ffb970', speed: 3.6 },
+  { kind: 'hover', body: '#68d5ff', glow: '#1de9ff', tail: '#1de9ff', speed: 3.8 * VEHICLE_SPEED_MULTIPLIER },
+  { kind: 'cargo', body: '#f7a9ff', glow: '#ff43b4', tail: '#ff43b4', speed: 3.4 * VEHICLE_SPEED_MULTIPLIER },
+  { kind: 'pulse', body: '#d2ff9b', glow: '#9cff57', tail: '#9cff57', speed: 4.2 * VEHICLE_SPEED_MULTIPLIER },
+  { kind: 'taxi', body: '#ffc67d', glow: '#ff9c3d', tail: '#ffb970', speed: 3.6 * VEHICLE_SPEED_MULTIPLIER },
 ];
 
 const MIN_ACTIVE_VEHICLES = 2;
