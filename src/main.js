@@ -71,8 +71,8 @@ const levelBlueprint = {
   buildings: [
     { id: 'b-hub', coord: { x: 14, y: 12 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'hub', neon: '#1de9ff' } },
     { id: 'b-reactor', coord: { x: 18, y: 12 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'reactor', neon: '#9cff57' } },
-    { id: 'b-tower-west', coord: { x: 6, y: 7 }, size: { w: 3, h: 5 }, type: 'building', meta: { style: 'tower', neon: '#ff43b4' } },
-    { id: 'b-tower-east', coord: { x: 27, y: 7 }, size: { w: 3, h: 5 }, type: 'building', meta: { style: 'tower', neon: '#7c7bff' } },
+    { id: 'b-tower-west', coord: { x: 6, y: 7 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'tower', neon: '#ff43b4' } },
+    { id: 'b-tower-east', coord: { x: 27, y: 7 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'tower', neon: '#7c7bff' } },
     { id: 'b-plant-south', coord: { x: 14, y: 6 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'plant', neon: '#ffa35c' } },
     { id: 'b-plant-north', coord: { x: 19, y: 6 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'plant', neon: '#4ce2ff' } },
   ],
