@@ -1,0 +1,40 @@
+:root {
+  color-scheme: dark;
+  --bg-0: #05040f;
+  --bg-1: #090a1d;
+  --accent-1: #1de9ff;
+  --accent-2: #ff43b4;
+  --accent-3: #9cff57;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  background: radial-gradient(circle at 25% 20%, #16234b 0%, var(--bg-1) 42%, var(--bg-0) 100%);
+}
+
+.app-shell {
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(29, 233, 255, 0.25);
+  background: linear-gradient(160deg, rgba(9, 17, 45, 0.45), rgba(8, 6, 22, 0.8));
+  box-shadow: 0 0 40px rgba(29, 233, 255, 0.18), inset 0 0 55px rgba(255, 67, 180, 0.08);
+}
+
+#game-canvas {
+  width: min(96vw, 1280px);
+  height: auto;
+  aspect-ratio: 5 / 3;
+  display: block;
+  border-radius: 12px;
+  border: 1px solid rgba(29, 233, 255, 0.32);
+  box-shadow: inset 0 0 50px rgba(29, 233, 255, 0.09), 0 0 40px rgba(255, 67, 180, 0.18);
+  background: #060716;
+}
