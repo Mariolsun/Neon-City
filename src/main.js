@@ -528,7 +528,7 @@ const roadGlowProfiles = new Map(
   ]),
 );
 
-const VEHICLE_SPEED_MULTIPLIER = 5;
+const VEHICLE_SPEED_MULTIPLIER = 50;
 
 const vehicleTypes = [
   { kind: 'hover', body: '#68d5ff', glow: '#1de9ff', tail: '#1de9ff', speed: 3.8 * VEHICLE_SPEED_MULTIPLIER },
