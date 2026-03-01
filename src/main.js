@@ -8,9 +8,9 @@ if (!ctx) {
   throw new Error('Unable to acquire 2D canvas context');
 }
 
-const CELL_SIZE = 32;
-const GRID_WIDTH = 36;
-const GRID_HEIGHT = 22;
+const CELL_SIZE = 8;
+const GRID_WIDTH = 144;
+const GRID_HEIGHT = 88;
 const OFFSET_X = Math.floor((canvas.width - GRID_WIDTH * CELL_SIZE) / 2);
 const OFFSET_Y = Math.floor((canvas.height - GRID_HEIGHT * CELL_SIZE) / 2);
 
@@ -76,22 +76,37 @@ registry.register('crossroad', (data) => new GameObject(data));
 
 const levelBlueprint = {
   roads: [
-    { id: 'r-loop-bottom', coord: { x: 4, y: 4 }, size: { w: 28, h: 2 }, type: 'road', meta: { orientation: 'h' } },
-    { id: 'r-loop-top', coord: { x: 4, y: 16 }, size: { w: 28, h: 2 }, type: 'road', meta: { orientation: 'h' } },
-    { id: 'r-loop-left', coord: { x: 4, y: 6 }, size: { w: 2, h: 10 }, type: 'road', meta: { orientation: 'v' } },
-    { id: 'r-loop-right', coord: { x: 30, y: 6 }, size: { w: 2, h: 10 }, type: 'road', meta: { orientation: 'v' } },
-    { id: 'r-mid-horizontal', coord: { x: 8, y: 10 }, size: { w: 20, h: 2 }, type: 'road', meta: { orientation: 'h' } },
-    { id: 'r-mid-vertical-west', coord: { x: 12, y: 6 }, size: { w: 2, h: 10 }, type: 'road', meta: { orientation: 'v' } },
-    { id: 'r-mid-vertical-east', coord: { x: 22, y: 6 }, size: { w: 2, h: 10 }, type: 'road', meta: { orientation: 'v' } },
+    { id: 'r-loop-bottom', coord: { x: 8, y: 8 }, size: { w: 128, h: 2 }, type: 'road', meta: { orientation: 'h' } },
+    { id: 'r-loop-top', coord: { x: 8, y: 78 }, size: { w: 128, h: 2 }, type: 'road', meta: { orientation: 'h' } },
+    { id: 'r-loop-left', coord: { x: 8, y: 8 }, size: { w: 2, h: 72 }, type: 'road', meta: { orientation: 'v' } },
+    { id: 'r-loop-right', coord: { x: 134, y: 8 }, size: { w: 2, h: 72 }, type: 'road', meta: { orientation: 'v' } },
+    { id: 'r-core-south', coord: { x: 8, y: 24 }, size: { w: 128, h: 2 }, type: 'road', meta: { orientation: 'h' } },
+    { id: 'r-core-mid', coord: { x: 8, y: 42 }, size: { w: 128, h: 2 }, type: 'road', meta: { orientation: 'h' } },
+    { id: 'r-core-north', coord: { x: 8, y: 60 }, size: { w: 128, h: 2 }, type: 'road', meta: { orientation: 'h' } },
+    { id: 'r-west-spine', coord: { x: 40, y: 8 }, size: { w: 2, h: 72 }, type: 'road', meta: { orientation: 'v' } },
+    { id: 'r-central-spine', coord: { x: 72, y: 8 }, size: { w: 2, h: 72 }, type: 'road', meta: { orientation: 'v' } },
+    { id: 'r-east-spine', coord: { x: 104, y: 8 }, size: { w: 2, h: 72 }, type: 'road', meta: { orientation: 'v' } },
   ],
   buildings: [
-    { id: 'b-hub', coord: { x: 14, y: 12 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'hub', neon: '#1de9ff' } },
-    { id: 'b-reactor', coord: { x: 18, y: 12 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'reactor', neon: '#9cff57' } },
-    { id: 'b-tower-west', coord: { x: 6, y: 7 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'tower', neon: '#ff43b4' } },
-    { id: 'b-tower-east', coord: { x: 27, y: 7 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'tower', neon: '#7c7bff' } },
-    { id: 'b-plant-south', coord: { x: 14, y: 6 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'plant', neon: '#ffa35c' } },
-    { id: 'b-plant-north', coord: { x: 19, y: 6 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'plant', neon: '#4ce2ff' } },
+    { id: 'b-west-slip', coord: { x: 12, y: 20 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'plant', neon: '#ffa35c' } },
+    { id: 'b-west-yard', coord: { x: 19, y: 26 }, size: { w: 5, h: 4 }, type: 'building', meta: { style: 'hub', neon: '#1de9ff' } },
+    { id: 'b-west-arcology', coord: { x: 28, y: 44 }, size: { w: 3, h: 6 }, type: 'building', meta: { style: 'tower', neon: '#7c7bff' } },
+    { id: 'b-west-stack', coord: { x: 33, y: 62 }, size: { w: 2, h: 8 }, type: 'building', meta: { style: 'reactor', neon: '#9cff57' } },
+
+    { id: 'b-core-slip', coord: { x: 46, y: 38 }, size: { w: 5, h: 4 }, type: 'building', meta: { style: 'plant', neon: '#ff6fd8' } },
+    { id: 'b-core-foundry', coord: { x: 54, y: 26 }, size: { w: 4, h: 5 }, type: 'building', meta: { style: 'reactor', neon: '#f1ff5e' } },
+    { id: 'b-core-plaza', coord: { x: 61, y: 44 }, size: { w: 5, h: 3 }, type: 'building', meta: { style: 'hub', neon: '#4ce2ff' } },
+    { id: 'b-core-spire', coord: { x: 66, y: 56 }, size: { w: 3, h: 4 }, type: 'building', meta: { style: 'tower', neon: '#ff43b4' } },
+
+    { id: 'b-east-galleria', coord: { x: 78, y: 20 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'hub', neon: '#1de9ff' } },
+    { id: 'b-east-reactor', coord: { x: 87, y: 26 }, size: { w: 5, h: 4 }, type: 'building', meta: { style: 'reactor', neon: '#9cff57' } },
+    { id: 'b-east-district', coord: { x: 94, y: 44 }, size: { w: 4, h: 5 }, type: 'building', meta: { style: 'plant', neon: '#ff6fd8' } },
+    { id: 'b-east-spire', coord: { x: 98, y: 62 }, size: { w: 3, h: 6 }, type: 'building', meta: { style: 'tower', neon: '#7c7bff' } },
+
+    { id: 'b-far-east-yard', coord: { x: 110, y: 38 }, size: { w: 5, h: 4 }, type: 'building', meta: { style: 'plant', neon: '#ffa35c' } },
+    { id: 'b-far-east-spire', coord: { x: 121, y: 56 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'tower', neon: '#ff43b4' } },
   ],
+
   crossroads: [],
 };
 
