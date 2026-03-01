@@ -201,13 +201,14 @@ function classifyCrossroad(openings) {
   if (count === 3) return { kind: '3-way', variant: `tee-${signature}` };
   if (count === 2) {
     const isStraight = (sorted.includes('N') && sorted.includes('S')) || (sorted.includes('E') && sorted.includes('W'));
-    return { kind: '2-way', variant: isStraight ? `straight-${signature}` : `corner-${signature}` };
+    if (isStraight) return null;
+    return { kind: '2-way', variant: `corner-${signature}` };
   }
   return null;
 }
 
 const generatedCrossroads = [...roadGraph.entries()].flatMap(([key, neighbors]) => {
-  if (neighbors.length < 2) return [];
+  if (neighbors.length < 2 || neighbors.length > 4) return [];
   const [x, y] = key.split(',').map(Number);
   const openings = neighbors
     .map((neighbor) => directionFromStep(neighbor.x - x, neighbor.y - y))
@@ -824,12 +825,20 @@ function drawCrossroad(crossroad) {
     '2-way': '#9cff57',
   };
 
-  ctx.fillStyle = blend(palette[crossroad.meta.kind] || '#9cb7ff', 0.14);
-  ctx.fillRect(x + 2, y + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+  const color = palette[crossroad.meta.kind] || '#9cb7ff';
+  const centerX = x + CELL_SIZE / 2;
+  const centerY = y + CELL_SIZE / 2;
 
-  ctx.strokeStyle = blend(palette[crossroad.meta.kind] || '#9cb7ff', 0.7);
-  ctx.lineWidth = 1;
-  ctx.strokeRect(x + 5, y + 5, CELL_SIZE - 10, CELL_SIZE - 10);
+  ctx.beginPath();
+  ctx.fillStyle = blend(color, 0.5);
+  ctx.arc(centerX, centerY, 4, 0, TAU);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.strokeStyle = blend(color, 0.8);
+  ctx.lineWidth = 1.5;
+  ctx.arc(centerX, centerY, 7, 0, TAU);
+  ctx.stroke();
 }
 
 let lastTs = performance.now();
