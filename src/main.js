@@ -564,17 +564,42 @@ class Vehicle {
   setTransitionFromBuilding(buildingId, roadCell) {
     const building = buildings.find((candidate) => candidate.id === buildingId);
     if (!building) return;
-    const buildingCenter = cellCenter(building.center());
-    this.transitionStart = { ...buildingCenter };
-    this.transitionEnd = cellCenter(roadCell);
+    const roadAnchor = cellCenter(roadCell);
+    this.transitionStart = this.getPortalAnchor(building, roadAnchor);
+    this.transitionEnd = roadAnchor;
   }
 
   setTransitionToBuilding(roadCell, buildingId) {
     const building = buildings.find((candidate) => candidate.id === buildingId);
     if (!building) return;
-    const buildingCenter = cellCenter(building.center());
-    this.transitionStart = cellCenter(roadCell);
-    this.transitionEnd = { ...buildingCenter };
+    const roadAnchor = cellCenter(roadCell);
+    this.transitionStart = roadAnchor;
+    this.transitionEnd = this.getPortalAnchor(building, roadAnchor);
+  }
+
+  getPortalAnchor(building, roadAnchor) {
+    const portal = building.meta.portal;
+    const left = OFFSET_X + building.coord.x * CELL_SIZE;
+    const right = left + building.size.w * CELL_SIZE;
+    const top = canvas.height - OFFSET_Y - (building.coord.y + building.size.h) * CELL_SIZE;
+    const bottom = top + building.size.h * CELL_SIZE;
+
+    if (!portal) return cellCenter(building.center());
+
+    if (portal.side === 'south') {
+      return { x: roadAnchor.x, y: bottom };
+    }
+    if (portal.side === 'north') {
+      return { x: roadAnchor.x, y: top };
+    }
+    if (portal.side === 'west') {
+      return { x: left, y: roadAnchor.y };
+    }
+    if (portal.side === 'east') {
+      return { x: right, y: roadAnchor.y };
+    }
+
+    return cellCenter(building.center());
   }
 
   update(dt) {
