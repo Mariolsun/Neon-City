@@ -129,6 +129,62 @@ for (const key of roadCells) {
   roadGraph.set(key, neighbors);
 }
 
+function roadContainsCell(road, cell) {
+  return (
+    cell.x >= road.coord.x
+    && cell.x < road.coord.x + road.size.w
+    && cell.y >= road.coord.y
+    && cell.y < road.coord.y + road.size.h
+  );
+}
+
+const laneDirections = new Map();
+for (const key of roadCells) {
+  const [x, y] = key.split(',').map(Number);
+  const cell = { x, y };
+  const horizontalRoads = roads.filter((road) => road.meta.orientation === 'h' && roadContainsCell(road, cell));
+  const verticalRoads = roads.filter((road) => road.meta.orientation === 'v' && roadContainsCell(road, cell));
+
+  if (horizontalRoads.length > 0 && verticalRoads.length > 0) {
+    laneDirections.set(key, null);
+    continue;
+  }
+
+  if (horizontalRoads.length > 0) {
+    const road = horizontalRoads[0];
+    const isNorthLane = y === road.coord.y + road.size.h - 1;
+    laneDirections.set(key, isNorthLane ? { dx: 1, dy: 0 } : { dx: -1, dy: 0 });
+    continue;
+  }
+
+  if (verticalRoads.length > 0) {
+    const road = verticalRoads[0];
+    const isWestLane = x === road.coord.x;
+    laneDirections.set(key, isWestLane ? { dx: 0, dy: 1 } : { dx: 0, dy: -1 });
+    continue;
+  }
+
+  laneDirections.set(key, null);
+}
+
+const intersectionCells = new Set(
+  [...roadGraph.entries()]
+    .filter(([, neighbors]) => neighbors.length >= 3)
+    .map(([key]) => key),
+);
+
+function canTravel(from, to) {
+  const fromKey = `${from.x},${from.y}`;
+  const toKey = `${to.x},${to.y}`;
+  const step = { dx: to.x - from.x, dy: to.y - from.y };
+  const fromLane = laneDirections.get(fromKey);
+  const toLane = laneDirections.get(toKey);
+
+  const matchesFromLane = !fromLane || (fromLane.dx === step.dx && fromLane.dy === step.dy);
+  const matchesToLane = !toLane || (toLane.dx === step.dx && toLane.dy === step.dy);
+  return matchesFromLane && matchesToLane;
+}
+
 const entrances = buildings.map((building) => {
   const options = [];
   for (let x = building.coord.x - 1; x <= building.coord.x + building.size.w; x += 1) {
@@ -163,37 +219,54 @@ for (const key of roadCells) {
   }
 }
 
-function bfsPath(start, goal) {
+function bfsPath(start, goal, previousCell = null) {
   const startKey = `${start.x},${start.y}`;
   const goalKey = `${goal.x},${goal.y}`;
   if (!roadGraph.has(startKey) || !roadGraph.has(goalKey)) return null;
 
-  const queue = [startKey];
-  const visited = new Set([startKey]);
+  const previousKey = previousCell ? `${previousCell.x},${previousCell.y}` : 'none';
+  const startState = `${startKey}|${previousKey}`;
+
+  const queue = [{ current: startKey, previous: previousKey }];
+  const visited = new Set([startState]);
   const parent = new Map();
 
+  let goalState = null;
+
   while (queue.length > 0) {
-    const current = queue.shift();
-    if (current === goalKey) break;
-    const neighbors = roadGraph.get(current) || [];
+    const state = queue.shift();
+    if (state.current === goalKey) {
+      goalState = `${state.current}|${state.previous}`;
+      break;
+    }
+
+    const [cx, cy] = state.current.split(',').map(Number);
+    const currentCell = { x: cx, y: cy };
+    const neighbors = roadGraph.get(state.current) || [];
     for (const next of neighbors) {
       const nextKey = `${next.x},${next.y}`;
-      if (!visited.has(nextKey)) {
-        visited.add(nextKey);
-        parent.set(nextKey, current);
-        queue.push(nextKey);
-      }
+      const isUTurn = state.previous !== 'none' && nextKey === state.previous;
+      if (isUTurn && !intersectionCells.has(state.current)) continue;
+      if (!canTravel(currentCell, next)) continue;
+
+      const nextState = `${nextKey}|${state.current}`;
+      if (visited.has(nextState)) continue;
+
+      visited.add(nextState);
+      parent.set(nextState, `${state.current}|${state.previous}`);
+      queue.push({ current: nextKey, previous: state.current });
     }
   }
 
-  if (!visited.has(goalKey)) return null;
+  if (!goalState) return null;
 
   const path = [];
-  let currentKey = goalKey;
-  while (currentKey) {
+  let currentState = goalState;
+  while (currentState) {
+    const [currentKey] = currentState.split('|');
     const [x, y] = currentKey.split(',').map(Number);
     path.push({ x, y });
-    currentKey = parent.get(currentKey);
+    currentState = parent.get(currentState);
   }
   return path.reverse();
 }
@@ -233,6 +306,7 @@ class Vehicle {
     this.radius = 8;
     this.heading = 0;
     this.targetHeading = 0;
+    this.previousCell = null;
   }
 
   assignRoute(cells) {
@@ -278,9 +352,11 @@ class Vehicle {
     if (this.tail.length > 24) this.tail.shift();
 
     if (this.progress >= 1) {
+      const departedCell = this.cell;
       this.cell = nextCell;
       this.path.shift();
       this.progress = 0;
+      this.previousCell = departedCell;
 
       const entry = entrances.find((item) => item.options.some((option) => option.x === this.cell.x && option.y === this.cell.y));
       if (entry && Math.random() < 0.24) {
@@ -313,7 +389,7 @@ class Vehicle {
       target = { x, y };
     }
 
-    const path = bfsPath(start, target);
+    const path = bfsPath(start, target, this.previousCell);
     if (path && path.length > 1) {
       this.assignRoute(path.slice(1));
     }
