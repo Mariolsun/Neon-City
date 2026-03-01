@@ -72,6 +72,7 @@ class ObjectRegistry {
 const registry = new ObjectRegistry();
 registry.register('road', (data) => new GameObject(data));
 registry.register('building', (data) => new GameObject(data));
+registry.register('crossroad', (data) => new GameObject(data));
 
 const levelBlueprint = {
   roads: [
@@ -91,9 +92,11 @@ const levelBlueprint = {
     { id: 'b-plant-south', coord: { x: 14, y: 6 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'plant', neon: '#ffa35c' } },
     { id: 'b-plant-north', coord: { x: 19, y: 6 }, size: { w: 3, h: 3 }, type: 'building', meta: { style: 'plant', neon: '#4ce2ff' } },
   ],
+  crossroads: [],
 };
 
-const gameObjects = [...levelBlueprint.roads, ...levelBlueprint.buildings].map((item) => registry.create(item));
+const gameObjects = [...levelBlueprint.roads, ...levelBlueprint.buildings, ...levelBlueprint.crossroads]
+  .map((item) => registry.create(item));
 const roads = gameObjects.filter((obj) => obj.type === 'road');
 const buildings = gameObjects.filter((obj) => obj.type === 'building');
 
@@ -174,11 +177,60 @@ for (const key of roadCells) {
   laneDirections.set(key, null);
 }
 
-const intersectionCells = new Set(
-  [...roadGraph.entries()]
-    .filter(([, neighbors]) => neighbors.length >= 3)
-    .map(([key]) => key),
-);
+function directionFromStep(dx, dy) {
+  if (dx === 1 && dy === 0) return 'E';
+  if (dx === -1 && dy === 0) return 'W';
+  if (dx === 0 && dy === 1) return 'N';
+  if (dx === 0 && dy === -1) return 'S';
+  return null;
+}
+
+function oppositeDirection(direction) {
+  if (direction === 'E') return 'W';
+  if (direction === 'W') return 'E';
+  if (direction === 'N') return 'S';
+  if (direction === 'S') return 'N';
+  return null;
+}
+
+function classifyCrossroad(openings) {
+  const sorted = [...openings].sort();
+  const signature = sorted.join('');
+  const count = sorted.length;
+  if (count === 4) return { kind: '4-way', variant: 'cross' };
+  if (count === 3) return { kind: '3-way', variant: `tee-${signature}` };
+  if (count === 2) {
+    const isStraight = (sorted.includes('N') && sorted.includes('S')) || (sorted.includes('E') && sorted.includes('W'));
+    if (isStraight) return null;
+    return { kind: '2-way', variant: `corner-${signature}` };
+  }
+  return null;
+}
+
+const generatedCrossroads = [...roadGraph.entries()].flatMap(([key, neighbors]) => {
+  if (neighbors.length < 2 || neighbors.length > 4) return [];
+  const [x, y] = key.split(',').map(Number);
+  const openings = neighbors
+    .map((neighbor) => directionFromStep(neighbor.x - x, neighbor.y - y))
+    .filter(Boolean);
+  const profile = classifyCrossroad(openings);
+  if (!profile) return [];
+
+  return [registry.create({
+    id: `x-${x}-${y}`,
+    type: 'crossroad',
+    coord: { x, y },
+    size: { w: 1, h: 1 },
+    meta: {
+      kind: profile.kind,
+      variant: profile.variant,
+      openings,
+    },
+  })];
+});
+
+const crossroads = generatedCrossroads;
+const crossroadByCell = new Map(crossroads.map((crossroad) => [`${crossroad.coord.x},${crossroad.coord.y}`, crossroad]));
 
 function canTravel(from, to) {
   const fromKey = `${from.x},${from.y}`;
@@ -190,6 +242,30 @@ function canTravel(from, to) {
   const matchesFromLane = !fromLane || (fromLane.dx === step.dx && fromLane.dy === step.dy);
   const matchesToLane = !toLane || (toLane.dx === step.dx && toLane.dy === step.dy);
   return matchesFromLane && matchesToLane;
+}
+
+function canTraverseConnection(previousCell, currentCell, nextCell) {
+  const stepIn = previousCell
+    ? directionFromStep(currentCell.x - previousCell.x, currentCell.y - previousCell.y)
+    : null;
+  const stepOut = directionFromStep(nextCell.x - currentCell.x, nextCell.y - currentCell.y);
+  if (!stepOut) return false;
+
+  const crossroad = crossroadByCell.get(`${currentCell.x},${currentCell.y}`);
+  if (!crossroad) {
+    if (!stepIn) return true;
+    return stepIn === stepOut;
+  }
+
+  const openings = new Set(crossroad.meta.openings);
+  if (!openings.has(stepOut)) return false;
+  if (!stepIn) return true;
+
+  const cameFrom = oppositeDirection(stepIn);
+  if (!openings.has(cameFrom)) return false;
+  const isUTurn = stepIn === oppositeDirection(stepOut);
+  if (isUTurn) return false;
+  return true;
 }
 
 function findRuns(values) {
@@ -339,9 +415,14 @@ function bfsPath(start, goal, previousCell = null) {
     const neighbors = roadGraph.get(state.current) || [];
     for (const next of neighbors) {
       const nextKey = `${next.x},${next.y}`;
-      const isUTurn = state.previous !== 'none' && nextKey === state.previous;
-      if (isUTurn && !intersectionCells.has(state.current)) continue;
       if (!canTravel(currentCell, next)) continue;
+      const previousCell = state.previous === 'none'
+        ? null
+        : (() => {
+          const [px, py] = state.previous.split(',').map(Number);
+          return { x: px, y: py };
+        })();
+      if (!canTraverseConnection(previousCell, currentCell, next)) continue;
 
       const nextState = `${nextKey}|${state.current}`;
       if (visited.has(nextState)) continue;
@@ -734,6 +815,32 @@ function drawBuilding(building) {
   ctx.fillRect(markerX, markerY, markerW, markerH);
 }
 
+function drawCrossroad(crossroad) {
+  const x = OFFSET_X + crossroad.coord.x * CELL_SIZE;
+  const y = canvas.height - OFFSET_Y - (crossroad.coord.y + 1) * CELL_SIZE;
+
+  const palette = {
+    '4-way': '#1de9ff',
+    '3-way': '#ff43b4',
+    '2-way': '#9cff57',
+  };
+
+  const color = palette[crossroad.meta.kind] || '#9cb7ff';
+  const centerX = x + CELL_SIZE / 2;
+  const centerY = y + CELL_SIZE / 2;
+
+  ctx.beginPath();
+  ctx.fillStyle = blend(color, 0.5);
+  ctx.arc(centerX, centerY, 4, 0, TAU);
+  ctx.fill();
+
+  ctx.beginPath();
+  ctx.strokeStyle = blend(color, 0.8);
+  ctx.lineWidth = 1.5;
+  ctx.arc(centerX, centerY, 7, 0, TAU);
+  ctx.stroke();
+}
+
 let lastTs = performance.now();
 function frame(ts) {
   const dt = Math.min((ts - lastTs) / 1000, 0.05);
@@ -750,6 +857,7 @@ function frame(ts) {
   drawGrid();
   const elapsed = ts / 1000;
   roads.forEach((road) => drawRoad(road, elapsed));
+  crossroads.forEach(drawCrossroad);
   buildings.forEach(drawBuilding);
 
   spawnCooldown = Math.max(0, spawnCooldown - dt);
