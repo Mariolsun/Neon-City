@@ -88,15 +88,25 @@ const levelBlueprint = {
     { id: 'r-east-spine', coord: { x: 104, y: 8 }, size: { w: 2, h: 72 }, type: 'road', meta: { orientation: 'v' } },
   ],
   buildings: [
-    { id: 'b-west-yard', coord: { x: 12, y: 26 }, size: { w: 24, h: 12 }, type: 'building', meta: { style: 'plant', neon: '#ffa35c' } },
-    { id: 'b-west-arcology', coord: { x: 12, y: 44 }, size: { w: 24, h: 12 }, type: 'building', meta: { style: 'tower', neon: '#7c7bff' } },
-    { id: 'b-core-foundry', coord: { x: 44, y: 26 }, size: { w: 24, h: 12 }, type: 'building', meta: { style: 'reactor', neon: '#9cff57' } },
-    { id: 'b-core-plaza', coord: { x: 44, y: 44 }, size: { w: 24, h: 12 }, type: 'building', meta: { style: 'hub', neon: '#1de9ff' } },
-    { id: 'b-east-galleria', coord: { x: 76, y: 26 }, size: { w: 24, h: 12 }, type: 'building', meta: { style: 'hub', neon: '#4ce2ff' } },
-    { id: 'b-east-reactor', coord: { x: 76, y: 44 }, size: { w: 24, h: 12 }, type: 'building', meta: { style: 'reactor', neon: '#f1ff5e' } },
-    { id: 'b-far-east-district', coord: { x: 108, y: 26 }, size: { w: 24, h: 12 }, type: 'building', meta: { style: 'plant', neon: '#ff6fd8' } },
-    { id: 'b-far-east-spire', coord: { x: 108, y: 44 }, size: { w: 24, h: 12 }, type: 'building', meta: { style: 'tower', neon: '#ff43b4' } },
+    { id: 'b-west-slip', coord: { x: 12, y: 20 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'plant', neon: '#ffa35c' } },
+    { id: 'b-west-yard', coord: { x: 19, y: 26 }, size: { w: 5, h: 4 }, type: 'building', meta: { style: 'hub', neon: '#1de9ff' } },
+    { id: 'b-west-arcology', coord: { x: 28, y: 44 }, size: { w: 3, h: 6 }, type: 'building', meta: { style: 'tower', neon: '#7c7bff' } },
+    { id: 'b-west-stack', coord: { x: 33, y: 62 }, size: { w: 2, h: 8 }, type: 'building', meta: { style: 'reactor', neon: '#9cff57' } },
+
+    { id: 'b-core-slip', coord: { x: 46, y: 38 }, size: { w: 5, h: 4 }, type: 'building', meta: { style: 'plant', neon: '#ff6fd8' } },
+    { id: 'b-core-foundry', coord: { x: 54, y: 26 }, size: { w: 4, h: 5 }, type: 'building', meta: { style: 'reactor', neon: '#f1ff5e' } },
+    { id: 'b-core-plaza', coord: { x: 61, y: 44 }, size: { w: 5, h: 3 }, type: 'building', meta: { style: 'hub', neon: '#4ce2ff' } },
+    { id: 'b-core-spire', coord: { x: 66, y: 56 }, size: { w: 3, h: 4 }, type: 'building', meta: { style: 'tower', neon: '#ff43b4' } },
+
+    { id: 'b-east-galleria', coord: { x: 78, y: 20 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'hub', neon: '#1de9ff' } },
+    { id: 'b-east-reactor', coord: { x: 87, y: 26 }, size: { w: 5, h: 4 }, type: 'building', meta: { style: 'reactor', neon: '#9cff57' } },
+    { id: 'b-east-district', coord: { x: 94, y: 44 }, size: { w: 4, h: 5 }, type: 'building', meta: { style: 'plant', neon: '#ff6fd8' } },
+    { id: 'b-east-spire', coord: { x: 98, y: 62 }, size: { w: 3, h: 6 }, type: 'building', meta: { style: 'tower', neon: '#7c7bff' } },
+
+    { id: 'b-far-east-yard', coord: { x: 110, y: 38 }, size: { w: 5, h: 4 }, type: 'building', meta: { style: 'plant', neon: '#ffa35c' } },
+    { id: 'b-far-east-spire', coord: { x: 121, y: 56 }, size: { w: 4, h: 4 }, type: 'building', meta: { style: 'tower', neon: '#ff43b4' } },
   ],
+
   crossroads: [],
 };
 
