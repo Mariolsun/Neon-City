@@ -528,7 +528,7 @@ const roadGlowProfiles = new Map(
   ]),
 );
 
-const VEHICLE_SPEED_MULTIPLIER = 5;
+const VEHICLE_SPEED_MULTIPLIER = 50;
 const VEHICLE_TURN_RATE_MULTIPLIER = VEHICLE_SPEED_MULTIPLIER;
 
 const vehicleTypes = [
