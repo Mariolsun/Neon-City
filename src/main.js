@@ -528,7 +528,7 @@ const roadGlowProfiles = new Map(
   ]),
 );
 
-const VEHICLE_SPEED_MULTIPLIER = 50;
+const VEHICLE_SPEED_MULTIPLIER = 25;
 const VEHICLE_TURN_RATE_MULTIPLIER = VEHICLE_SPEED_MULTIPLIER;
 
 const vehicleTypes = [
@@ -538,8 +538,8 @@ const vehicleTypes = [
   { kind: 'taxi', body: '#ffc67d', glow: '#ff9c3d', tail: '#ffb970', speed: 3.6 * VEHICLE_SPEED_MULTIPLIER },
 ];
 
-const MIN_ACTIVE_VEHICLES = 2;
-const MAX_ACTIVE_VEHICLES = 4;
+const MIN_ACTIVE_VEHICLES = 10;
+const MAX_ACTIVE_VEHICLES = 15;
 
 function createTrip(originBuildingId = null) {
   for (let attempt = 0; attempt < 80; attempt += 1) {
