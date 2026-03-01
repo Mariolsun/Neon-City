@@ -207,30 +207,51 @@ function classifyCrossroad(openings) {
   return null;
 }
 
-const generatedCrossroads = [...roadGraph.entries()].flatMap(([key, neighbors]) => {
-  if (neighbors.length < 2 || neighbors.length > 4) return [];
-  const [x, y] = key.split(',').map(Number);
-  const openings = neighbors
-    .map((neighbor) => directionFromStep(neighbor.x - x, neighbor.y - y))
-    .filter(Boolean);
-  const profile = classifyCrossroad(openings);
-  if (!profile) return [];
+function isIntersectionCell(cell) {
+  const horizontalRoads = roads.filter((road) => road.meta.orientation === 'h' && roadContainsCell(road, cell));
+  const verticalRoads = roads.filter((road) => road.meta.orientation === 'v' && roadContainsCell(road, cell));
+  return horizontalRoads.length > 0 && verticalRoads.length > 0;
+}
 
-  return [registry.create({
+const crossroadBlocks = [];
+const crossroadTopLefts = new Set();
+for (const key of roadCells) {
+  const [x, y] = key.split(',').map(Number);
+  if (crossroadTopLefts.has(`${x},${y}`)) continue;
+
+  const cells = [
+    { x, y },
+    { x: x + 1, y },
+    { x, y: y + 1 },
+    { x: x + 1, y: y + 1 },
+  ];
+
+  const isTwoByTwoIntersection = cells.every((cell) => roadCells.has(`${cell.x},${cell.y}`) && isIntersectionCell(cell));
+  if (!isTwoByTwoIntersection) continue;
+
+  crossroadTopLefts.add(`${x},${y}`);
+  crossroadBlocks.push(registry.create({
     id: `x-${x}-${y}`,
     type: 'crossroad',
     coord: { x, y },
-    size: { w: 1, h: 1 },
+    size: { w: 2, h: 2 },
     meta: {
-      kind: profile.kind,
-      variant: profile.variant,
-      openings,
+      kind: '4-way',
+      variant: 'cross-block',
+      openings: ['N', 'S', 'E', 'W'],
     },
-  })];
-});
+  }));
+}
 
-const crossroads = generatedCrossroads;
-const crossroadByCell = new Map(crossroads.map((crossroad) => [`${crossroad.coord.x},${crossroad.coord.y}`, crossroad]));
+const crossroads = crossroadBlocks;
+const crossroadByCell = new Map();
+for (const crossroad of crossroads) {
+  for (let x = crossroad.coord.x; x < crossroad.coord.x + crossroad.size.w; x += 1) {
+    for (let y = crossroad.coord.y; y < crossroad.coord.y + crossroad.size.h; y += 1) {
+      crossroadByCell.set(`${x},${y}`, crossroad);
+    }
+  }
+}
 
 function canTravel(from, to) {
   const fromKey = `${from.x},${from.y}`;
@@ -842,28 +863,29 @@ function drawBuilding(building) {
 
 function drawCrossroad(crossroad) {
   const x = OFFSET_X + crossroad.coord.x * CELL_SIZE;
-  const y = canvas.height - OFFSET_Y - (crossroad.coord.y + 1) * CELL_SIZE;
+  const y = canvas.height - OFFSET_Y - (crossroad.coord.y + crossroad.size.h) * CELL_SIZE;
+  const w = crossroad.size.w * CELL_SIZE;
+  const h = crossroad.size.h * CELL_SIZE;
 
-  const palette = {
-    '4-way': '#1de9ff',
-    '3-way': '#ff43b4',
-    '2-way': '#9cff57',
-  };
+  const color = '#1de9ff';
 
-  const color = palette[crossroad.meta.kind] || '#9cb7ff';
-  const centerX = x + CELL_SIZE / 2;
-  const centerY = y + CELL_SIZE / 2;
+  ctx.fillStyle = blend(color, 0.2);
+  ctx.fillRect(x + 1, y + 1, w - 2, h - 2);
 
+  ctx.strokeStyle = blend(color, 0.9);
+  ctx.lineWidth = 2;
+  ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+
+  ctx.strokeStyle = blend('#ffffff', 0.5);
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 4]);
   ctx.beginPath();
-  ctx.fillStyle = blend(color, 0.5);
-  ctx.arc(centerX, centerY, 4, 0, TAU);
-  ctx.fill();
-
-  ctx.beginPath();
-  ctx.strokeStyle = blend(color, 0.8);
-  ctx.lineWidth = 1.5;
-  ctx.arc(centerX, centerY, 7, 0, TAU);
+  ctx.moveTo(x + w / 2, y + 3);
+  ctx.lineTo(x + w / 2, y + h - 3);
+  ctx.moveTo(x + 3, y + h / 2);
+  ctx.lineTo(x + w - 3, y + h / 2);
   ctx.stroke();
+  ctx.setLineDash([]);
 }
 
 let lastTs = performance.now();
