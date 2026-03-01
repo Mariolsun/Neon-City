@@ -332,8 +332,8 @@ class Vehicle {
     this.position = cellCenter(startCell);
     this.path = [];
     this.progress = 0;
-    this.stopTimer = rand(0.2, 2.2);
-    this.stopType = 'traffic';
+    this.stopTimer = 0;
+    this.stopType = null;
     this.tail = [];
     this.radius = 8;
     this.heading = 0;
@@ -361,8 +361,9 @@ class Vehicle {
     const nextCell = this.path[0];
     const nextKey = `${nextCell.x},${nextCell.y}`;
     const myKey = `${this.cell.x},${this.cell.y}`;
+    const atIntersection = intersectionCells.has(myKey);
 
-    if (occupiedCells.has(nextKey) && nextKey !== myKey) {
+    if (atIntersection && occupiedCells.has(nextKey) && nextKey !== myKey) {
       this.stopTimer = rand(0.2, 0.5);
       this.stopType = 'traffic';
       this.fadeTail(dt);
@@ -394,7 +395,7 @@ class Vehicle {
       if (entry && Math.random() < 0.24) {
         this.stopTimer = rand(1.4, 3.1);
         this.stopType = 'building';
-      } else if (Math.random() < 0.1) {
+      } else if (atIntersection && Math.random() < 0.1) {
         this.stopTimer = rand(0.5, 1.6);
         this.stopType = 'traffic';
       }
