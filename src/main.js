@@ -285,6 +285,38 @@ function blend(hex, alpha) {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
+function hexToRgb(hex) {
+  return {
+    r: Number.parseInt(hex.slice(1, 3), 16),
+    g: Number.parseInt(hex.slice(3, 5), 16),
+    b: Number.parseInt(hex.slice(5, 7), 16),
+  };
+}
+
+function mixColors(a, b, ratio, alpha) {
+  const c1 = hexToRgb(a);
+  const c2 = hexToRgb(b);
+  const t = Math.max(0, Math.min(1, ratio));
+  const r = Math.round(c1.r + (c2.r - c1.r) * t);
+  const g = Math.round(c1.g + (c2.g - c1.g) * t);
+  const bChannel = Math.round(c1.b + (c2.b - c1.b) * t);
+  return `rgba(${r}, ${g}, ${bChannel}, ${alpha})`;
+}
+
+const roadGlowProfiles = new Map(
+  roads.map((road, index) => [
+    road.id,
+    {
+      pulsePhase: index * 0.9,
+      huePhase: index * 1.7,
+      pulseSpeed: 0.45 + (index % 3) * 0.1,
+      hueSpeed: 0.12 + (index % 2) * 0.04,
+      accentA: '#1dfdff',
+      accentB: index % 2 === 0 ? '#7c7bff' : '#ff43b4',
+    },
+  ]),
+);
+
 const vehicleTypes = [
   { kind: 'hover', body: '#68d5ff', glow: '#1de9ff', tail: '#1de9ff', speed: 2.4 },
   { kind: 'cargo', body: '#f7a9ff', glow: '#ff43b4', tail: '#ff43b4', speed: 2.0 },
@@ -450,7 +482,7 @@ function drawGrid() {
   }
 }
 
-function drawRoad(road) {
+function drawRoad(road, timeSeconds) {
   const x = OFFSET_X + road.coord.x * CELL_SIZE;
   const y = canvas.height - OFFSET_Y - (road.coord.y + road.size.h) * CELL_SIZE;
   const w = road.size.w * CELL_SIZE;
@@ -459,11 +491,17 @@ function drawRoad(road) {
   ctx.fillStyle = '#0d1128';
   ctx.fillRect(x, y, w, h);
 
-  ctx.strokeStyle = 'rgba(30, 253, 255, 0.14)';
+  const profile = roadGlowProfiles.get(road.id);
+  const pulse = (Math.sin(timeSeconds * profile.pulseSpeed * TAU + profile.pulsePhase) + 1) * 0.5;
+  const glowIntensity = 0.42 + pulse * 0.5;
+  const hueMixRaw = (Math.sin(timeSeconds * profile.hueSpeed * TAU + profile.huePhase) + 1) * 0.5;
+  const hueMix = Math.max(0.15, Math.pow(hueMixRaw, 2.2));
+
+  ctx.strokeStyle = mixColors(profile.accentA, profile.accentB, hueMix, 0.14 + glowIntensity * 0.12);
   ctx.lineWidth = 1.5;
   ctx.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
 
-  ctx.strokeStyle = 'rgba(130, 155, 255, 0.26)';
+  ctx.strokeStyle = mixColors('#829bff', profile.accentA, hueMix * 0.7, 0.2 + glowIntensity * 0.24);
   ctx.setLineDash([10, 8]);
   ctx.beginPath();
   if (road.meta.orientation === 'h') {
@@ -535,7 +573,8 @@ function frame(ts) {
   ctx.fillRect(0, 0, canvas.width, canvas.height);
 
   drawGrid();
-  roads.forEach(drawRoad);
+  const elapsed = ts / 1000;
+  roads.forEach((road) => drawRoad(road, elapsed));
   buildings.forEach(drawBuilding);
 
   const occupiedCells = new Set(vehicles.map((v) => `${v.cell.x},${v.cell.y}`));
