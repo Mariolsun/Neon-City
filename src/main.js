@@ -529,6 +529,7 @@ const roadGlowProfiles = new Map(
 );
 
 const VEHICLE_SPEED_MULTIPLIER = 50;
+const VEHICLE_TURN_RATE_MULTIPLIER = VEHICLE_SPEED_MULTIPLIER;
 
 const vehicleTypes = [
   { kind: 'hover', body: '#68d5ff', glow: '#1de9ff', tail: '#1de9ff', speed: 3.8 * VEHICLE_SPEED_MULTIPLIER },
@@ -648,7 +649,7 @@ class Vehicle {
       const to = this.transitionEnd;
       this.targetHeading = Math.atan2(to.y - from.y, to.x - from.x);
       const headingDelta = normalizeAngle(this.targetHeading - this.heading);
-      this.heading += headingDelta * Math.min(1, dt * 10);
+      this.heading += headingDelta * Math.min(1, dt * 10 * VEHICLE_TURN_RATE_MULTIPLIER);
       this.position.x = from.x + (to.x - from.x) * t;
       this.position.y = from.y + (to.y - from.y) * t;
 
@@ -680,7 +681,7 @@ class Vehicle {
     const to = cellCenter(nextCell);
     this.targetHeading = Math.atan2(to.y - from.y, to.x - from.x);
     const headingDelta = normalizeAngle(this.targetHeading - this.heading);
-    const turnRate = 10;
+    const turnRate = 10 * VEHICLE_TURN_RATE_MULTIPLIER;
     this.heading += headingDelta * Math.min(1, dt * turnRate);
     const t = Math.min(this.progress, 1);
     this.position.x = from.x + (to.x - from.x) * t;
